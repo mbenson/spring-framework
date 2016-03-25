@@ -291,6 +291,9 @@ class ConstructorResolver {
 		boolean isStatic;
 		if (mbd.getFactoryBeanName() != null) {
 			factoryClass = this.beanFactory.getType(mbd.getFactoryBeanName());
+			if (factoryClass == null) {
+				return;
+			}
 			isStatic = false;
 		}
 		else {

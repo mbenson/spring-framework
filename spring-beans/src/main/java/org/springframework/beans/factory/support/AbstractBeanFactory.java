@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2015 the original author or authors.
+ * Copyright 2002-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -536,7 +536,6 @@ public abstract class AbstractBeanFactory extends FactoryBeanRegistrySupport imp
 			if (beanType == null) {
 				return false;
 			}
-
 			// Check bean class whether we're dealing with a FactoryBean.
 			if (FactoryBean.class.isAssignableFrom(beanType)) {
 				if (!BeanFactoryUtils.isFactoryDereference(name)) {
@@ -557,7 +556,14 @@ public abstract class AbstractBeanFactory extends FactoryBeanRegistrySupport imp
 				}
 			}
 
-			return typeToMatch.isAssignableFrom(beanType);
+			ResolvableType resolvableBeanType;
+			if (beanType.getTypeParameters().length > 0 && mbd.getResolvedFactoryMethod() != null) {
+				resolvableBeanType = ResolvableType.forMethodReturnType(mbd.getResolvedFactoryMethod());
+			} else {
+				resolvableBeanType = ResolvableType.forClass(beanType);
+			}
+
+			return typeToMatch.isAssignableFrom(resolvableBeanType);
 		}
 	}
 

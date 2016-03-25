@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2015 the original author or authors.
+ * Copyright 2002-2016 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,12 +31,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import org.junit.Ignore;
 import org.junit.Test;
 import org.mockito.Mockito;
 
 import org.springframework.beans.PropertyEditorRegistrar;
 import org.springframework.beans.PropertyEditorRegistry;
 import org.springframework.beans.factory.BeanCreationException;
+import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.beans.factory.config.TypedStringValue;
 import org.springframework.beans.factory.xml.XmlBeanDefinitionReader;
 import org.springframework.beans.propertyeditors.CustomNumberEditor;
@@ -820,6 +822,81 @@ public class BeanFactoryGenericsTests {
 		assertEquals("store2", floatStoreNames[0]);
 	}
 
+	@Test
+	public void testGenericMatchingBoundFactoryMethods() {
+		DefaultListableBeanFactory bf = new DefaultListableBeanFactory();
+		bf.setAutowireCandidateResolver(new GenericTypeAwareAutowireCandidateResolver());
+
+		bf.registerBeanDefinition("concreteStoreFactory", new RootBeanDefinition(ConcreteStoreFactory.class));
+		bf.registerBeanDefinition("doubleStore", factoryMethodBean("concreteStoreFactory", "doubleStore"));
+		bf.registerBeanDefinition("floatStore", factoryMethodBean("concreteStoreFactory", "floatStore"));
+
+		String[] numberStoreNames = bf.getBeanNamesForType(ResolvableType.forClass(NumberStore.class));
+		String[] doubleStoreNames = bf.getBeanNamesForType(ResolvableType.forClassWithGenerics(NumberStore.class, Double.class));
+		String[] floatStoreNames = bf.getBeanNamesForType(ResolvableType.forClassWithGenerics(NumberStore.class, Float.class));
+		assertEquals(2, numberStoreNames.length);
+		assertEquals("doubleStore", numberStoreNames[0]);
+		assertEquals("floatStore", numberStoreNames[1]);
+		assertEquals(1, doubleStoreNames.length);
+		assertEquals("doubleStore", doubleStoreNames[0]);
+		assertEquals(1, floatStoreNames.length);
+		assertEquals("floatStore", floatStoreNames[0]);
+	}
+
+	@Test
+	public void testGenericMatchingParameterizedFactoryMethods() {
+		DefaultListableBeanFactory bf = new DefaultListableBeanFactory();
+		bf.setAutowireCandidateResolver(new GenericTypeAwareAutowireCandidateResolver());
+
+		bf.registerBeanDefinition("genericStoreFactory", new RootBeanDefinition(GenericStoreFactory.class));
+		bf.registerBeanDefinition("doubleStore", factoryMethodBean("genericStoreFactory", "doubleStore"));
+		bf.registerBeanDefinition("floatStore", factoryMethodBean("genericStoreFactory", "floatStore"));
+
+		String[] numberStoreNames = bf.getBeanNamesForType(ResolvableType.forClass(NumberStore.class));
+		String[] doubleStoreNames = bf.getBeanNamesForType(ResolvableType.forClassWithGenerics(NumberStore.class, Double.class));
+		String[] floatStoreNames = bf.getBeanNamesForType(ResolvableType.forClassWithGenerics(NumberStore.class, Float.class));
+		assertEquals(2, numberStoreNames.length);
+		assertEquals("doubleStore", numberStoreNames[0]);
+		assertEquals("floatStore", numberStoreNames[1]);
+		assertEquals(1, doubleStoreNames.length);
+		assertEquals("doubleStore", doubleStoreNames[0]);
+		assertEquals(1, floatStoreNames.length);
+		assertEquals("floatStore", floatStoreNames[0]);
+	}
+
+	@Test
+	@Ignore
+	public void testDynamicMatchingParameterizedFactoryMethods() {
+		DefaultListableBeanFactory bf = new DefaultListableBeanFactory();
+		bf.setAutowireCandidateResolver(new GenericTypeAwareAutowireCandidateResolver());
+
+		bf.registerBeanDefinition("dynamicStoreFactory", new RootBeanDefinition(DynamicStoreFactory.class));
+
+		BeanDefinition doubleStore = factoryMethodBean("dynamicStoreFactory", "store");
+		doubleStore.getConstructorArgumentValues().addGenericArgumentValue(Double.class);
+		bf.registerBeanDefinition("doubleStore", doubleStore);
+		BeanDefinition floatStore = factoryMethodBean("dynamicStoreFactory", "store");
+		floatStore.getConstructorArgumentValues().addGenericArgumentValue(Float.class);
+		bf.registerBeanDefinition("floatStore", floatStore);
+
+		String[] numberStoreNames = bf.getBeanNamesForType(ResolvableType.forClass(NumberStore.class));
+		String[] doubleStoreNames = bf.getBeanNamesForType(ResolvableType.forClassWithGenerics(NumberStore.class, Double.class));
+		String[] floatStoreNames = bf.getBeanNamesForType(ResolvableType.forClassWithGenerics(NumberStore.class, Float.class));
+		assertEquals(2, numberStoreNames.length);
+		assertEquals("doubleStore", numberStoreNames[0]);
+		assertEquals("floatStore", numberStoreNames[1]);
+		assertEquals(1, doubleStoreNames.length);
+		assertEquals("doubleStore", doubleStoreNames[0]);
+		assertEquals(1, floatStoreNames.length);
+		assertEquals("floatStore", floatStoreNames[0]);
+	}
+
+	private BeanDefinition factoryMethodBean(String factoryBeanName, String factoryMethodName) {
+		RootBeanDefinition result = new RootBeanDefinition();
+		result.setFactoryBeanName(factoryBeanName);
+		result.setFactoryMethodName(factoryMethodName);
+		return result;
+	}
 
 	@SuppressWarnings("serial")
 	public static class NamedUrlList extends LinkedList<URL> {
@@ -915,4 +992,41 @@ public class BeanFactoryGenericsTests {
 		}
 	}
 
+	public static class ConcreteStoreFactory {
+
+		public DoubleStore doubleStore() {
+			return new DoubleStore();
+		}
+
+		public FloatStore floatStore() {
+			return new FloatStore();
+		}
+	}
+
+	public static class GenericStoreFactory {
+
+		public NumberStore<Double> doubleStore() {
+			return new DoubleStore();
+		}
+
+		public NumberStore<Float> floatStore() {
+			return new FloatStore();
+		}
+	}
+
+	public static class DynamicStoreFactory {
+		public <T extends Number> NumberStore<T> store(Class<T> type) {
+			if (Double.class.equals(type)) {
+				@SuppressWarnings("unchecked")
+				NumberStore<T> result = (NumberStore<T>) new DoubleStore();
+				return result;
+			}
+			if (Float.class.equals(type)) {
+				@SuppressWarnings("unchecked")
+				NumberStore<T> result = (NumberStore<T>) new FloatStore();
+				return result;
+			}
+			throw new IllegalArgumentException(String.valueOf(type));
+		}
+	}
 }
